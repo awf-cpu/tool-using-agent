@@ -1,0 +1,6 @@
+Project notes
+=============
+
+The release is scheduled for the third quarter.
+The primary contact for the integration is the platform team.
+Remember to rotate the staging credentials before launch.
