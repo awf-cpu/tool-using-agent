@@ -1,35 +1,16 @@
 # tool-using-agent
 
-A minimal, **framework-free tool-using agent** in pure Python. Given a task, the
-agent runs a **reason → act → observe** loop: a planner picks a tool, the tool
-runs, the observation is fed back, and the loop repeats until the planner emits a
-final answer or hits a step limit. It runs fully **offline** with a deterministic
-rule-based planner, and can switch to **OpenAI function-calling** behind an env var.
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+[![CI](https://github.com/awf-cpu/tool-using-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/awf-cpu/tool-using-agent/actions/workflows/ci.yml)
 
-## Why it matters
+A minimal, **framework-free tool-using agent** in pure Python. Given a task, the agent runs a **reason, act, observe** loop: a planner picks a tool, the tool runs, the observation is fed back, and the loop repeats until the planner returns a final answer or hits a step limit. It runs fully **offline** with a deterministic rule-based planner and can switch to **OpenAI function-calling** with an environment variable. Zero runtime dependencies.
 
-"Agent" frameworks hide the part that actually matters: the control loop, tool
-schemas, argument validation, observation feedback, and the guardrails that stop
-runaway loops. This repo strips it to the essentials so the mechanics are
-visible and testable — the same shape that maps directly onto provider
-function-calling APIs.
+## The business problem
 
-## Architecture (in 4 lines)
+Most "AI agent" projects fail in production not because of the model but because of the control loop around it: tools that accept bad arguments, errors that crash the run, loops that never stop, file access that escapes its folder. This repo shows those guardrails in a few hundred readable, tested lines, the same shape that maps onto provider function-calling APIs.
 
-1. **Tools** (`tools.py`) — a safe calculator (AST-evaluated, no `eval`), an offline knowledge-base `search`, and a path-sandboxed `read_file`.
-2. **Planner** (`planner.py`) — `Planner` ABC returning a `PlannerAction` (tool call or final answer); deterministic `MockPlanner` by default, optional OpenAI function-calling planner.
-3. **Agent** (`core.py`) — drives the loop, validates tool calls, captures errors, and enforces a `max_steps` guard.
-4. Swapping the mock planner for OpenAI requires only `AGENT_PLANNER=openai` + `OPENAI_API_KEY`.
-
-## Install
-
-```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-pip install openai   # optional, only for the real planner
-```
-
-## Usage
+## Try it in one line
 
 ```bash
 python -m agent.run "What is 12*7 and who wrote Hamlet?"
@@ -42,43 +23,46 @@ Task: What is 12*7 and who wrote Hamlet?
 
 Steps:
   1. calculator('12*7') -> 84
-  2. search('hamlet') -> Hamlet was written by William Shakespeare around 1600.
+  2. search('Hamlet') -> Hamlet was written by William Shakespeare around 1600.
 
-Answer: Result(s): calculator('12*7') = 84; search('hamlet') = Hamlet was written by William Shakespeare around 1600.
+Answer: Result(s): calculator('12*7') = 84; search('Hamlet') = Hamlet was written by William Shakespeare around 1600.
 (stopped: final_answer)
 ```
 
-Use the real planner:
+Real planner (needs `pip install openai`):
 
 ```bash
-export OPENAI_API_KEY=sk-...
+export OPENAI_API_KEY=...
 python -m agent.run "Read notes.txt and tell me when the release is" --planner openai
 ```
 
-## How it works
+## Architecture
 
-- The **mock planner** is keyword/regex-driven and intentionally boring: it
-  detects an arithmetic expression, a who/what factual question, or a referenced
-  filename, dispatches the matching tool exactly once each, then composes a final
-  answer from the observations. This makes multi-step behaviour deterministic and
-  unit-testable while exercising the identical loop the real planner uses.
-- The **agent loop** records every `(tool, input, observation)` step, validates
-  that the requested tool exists, converts `ToolError`s into safe observations
-  (so a bad tool call never crashes the run), and guarantees termination via
-  `max_steps`.
-- **Safety**: the calculator parses with `ast` and only allows numeric literals
-  and arithmetic operators; `read_file` resolves real paths and refuses anything
-  outside its sandbox directory (blocking `../` traversal and absolute paths).
+1. **Tools** (`tools.py`): a safe calculator (AST-evaluated, no `eval`), an offline knowledge-base `search`, and a path-sandboxed `read_file`.
+2. **Planner** (`planner.py`): a `Planner` interface returning a tool call or a final answer. Deterministic `MockPlanner` by default, optional OpenAI function-calling planner.
+3. **Agent** (`core.py`): drives the loop, validates tool calls, converts tool errors into safe observations, and enforces a `max_steps` guard.
+
+**Guardrails built in:** no `eval` (the calculator parses with `ast` and allows only numbers and arithmetic), `read_file` refuses anything outside its sandbox (`../` and absolute paths blocked), unknown tools do not crash the run, and termination is guaranteed.
 
 ## Tests
 
 ```bash
-pytest -q
+pip install pytest && pytest -q
 ```
 
-Covers the calculator (incl. rejection of code injection), search hits/misses,
-sandbox traversal blocking, planner action selection, a full multi-step solve,
-unknown-tool handling, and the max-steps guard.
+14 tests: calculator (including code-injection rejection), search hits and misses, sandbox traversal blocking, planner action selection, a full multi-step solve, unknown-tool handling and the max-steps guard. CI runs them on Python 3.11 and 3.12 with no API keys.
+
+## How this becomes a solution for your company
+
+In real projects the tools are your systems (CRM, case-management, calendar, billing) and the guardrails are your rules: what the agent may do alone, what needs a human, what is logged for audit. If you want an agent that acts inside your operation with those limits made explicit, see **Work with me** below.
+
+## Work with me
+
+I am André Feix, founder of **Pindorama Tecnologia** (Florianópolis, Brazil). We build custom AI systems for companies and law firms: WhatsApp agents with compliance guardrails (LGPD, bar-association rules), RAG over documents, document and deadline automation, LLM routing with cost control, and local AI with data kept in Brazil.
+
+- LinkedIn: https://www.linkedin.com/in/andrefeix
+- Email: andrefeix777@gmail.com
+- More: https://github.com/awf-cpu
 
 ## License
 
