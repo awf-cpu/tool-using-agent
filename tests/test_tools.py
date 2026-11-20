@@ -55,3 +55,9 @@ def test_read_file_blocks_traversal():
         read_file("/etc/passwd")
     with pytest.raises(ToolError):
         read_file("does_not_exist.txt")
+
+
+def test_calculator_reports_math_errors_as_tool_errors():
+    for expr in ["1/0", "10**400", "9**9**9**9", "(-8)**0.5", "(" * 500 + "1" + ")" * 500]:
+        with pytest.raises(ToolError):
+            safe_calculate(expr)

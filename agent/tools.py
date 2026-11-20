@@ -66,7 +66,14 @@ def safe_calculate(expression: str) -> str:
         tree = ast.parse(expression, mode="eval")
     except SyntaxError as exc:  # pragma: no cover - defensive
         raise ToolError(f"invalid expression: {expression!r}") from exc
-    result = _eval_node(tree.body)
+    try:
+        result = _eval_node(tree.body)
+    except (ArithmeticError, RecursionError) as exc:
+        # Division by zero, overflow (e.g. 10**400) or absurd nesting must be
+        # reported to the agent as a tool error, never crash the loop.
+        raise ToolError(f"cannot evaluate expression: {type(exc).__name__}") from exc
+    if isinstance(result, complex):
+        raise ToolError("result is not a real number")
     # render ints without trailing ".0"
     if isinstance(result, float) and result.is_integer():
         result = int(result)
